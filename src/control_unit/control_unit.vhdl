@@ -81,7 +81,11 @@ begin
 
                 when EXEC_ALU =>
                     en_alu <= '1';
+<<<<<<< HEAD
                     sys_rst <= '1';
+=======
+                    sys_rst <= '1'; -- Jaga systolic tetap reset
+>>>>>>> bd774406d4470cc23dbdaa2a1b2e3dd8fbf2129f
                     if done_alu = '1' then
                         state <= FINISH;
                     end if;
