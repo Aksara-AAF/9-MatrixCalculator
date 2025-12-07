@@ -19,11 +19,9 @@ architecture sim of tb_matrix_processor is
     signal out_error : std_logic_vector(3 downto 0);
     signal out_done : std_logic;
 
-    -- Clock Period
     constant CLK_PERIOD : time := 10 ns;
 
 begin
-    -- DUT
     DUT : entity work.matrix_processor_top
         port map(
             clk         => clk,
@@ -42,7 +40,6 @@ begin
             out_done    => out_done
         );
 
-    -- Clock Gen
     clk_process : process
     begin
         clk <= '0';
@@ -51,34 +48,27 @@ begin
         wait for CLK_PERIOD / 2;
     end process;
 
-    -- Test Process
     process
-        -- SESUAIKAN DENGAN PATH FILE LOCAL
-        file f_in : text open read_mode is "C:\Users\mdaff\Documents\PSD PRAKTIKUM\Tes Finpro\tb\input.txt";
-        file f_out : text open write_mode is "C:\Users\mdaff\Documents\PSD PRAKTIKUM\Tes Finpro\tb\output.txt";
+        file f_in : text open read_mode is "C:\Users\LENOVO\Downloads\Finpro PSD\tb\input.txt";
+        file f_out : text open write_mode is "C:\Users\LENOVO\Downloads\Finpro PSD\tb\output.txt";
         variable L_in, L_out : line;
         variable v_op_str : string(1 to 4);
         variable v_val : integer;
         variable v_rA, v_cA, v_rB, v_cB : integer;
-
-        -- Batas print output
         variable limit_r, limit_c : integer;
-
-        -- variabel temporary untuk menyimpan error code saat out_done aktif
         variable v_captured_error : std_logic_vector(3 downto 0);
     begin
         -- Reset Sequence
         rst <= '1';
+        start <= '0';
         wait for 20 ns;
         rst <= '0';
         wait for 20 ns;
 
-        -- Loop membaca file sampai habis
         while not endfile(f_in) loop
             -- Baca Opcode
             readline(f_in, L_in);
             read(L_in, v_op_str);
-            -- Konversi String ke Std Logic Vector
             for i in 1 to 4 loop
                 if v_op_str(i) = '1' then
                     opcode(4 - i) <= '1';
@@ -95,7 +85,7 @@ begin
             dim_cols_A <= v_cA;
 
             -- Baca Matriks A
-            in_mat_A <= (others => (others => (others => '0'))); -- Clear
+            in_mat_A <= (others => (others => (others => '0')));
             for i in 0 to v_rA - 1 loop
                 readline(f_in, L_in);
                 for j in 0 to v_cA - 1 loop
@@ -112,7 +102,7 @@ begin
             dim_cols_B <= v_cB;
 
             -- Baca Matriks B
-            in_mat_B <= (others => (others => (others => '0'))); -- Clear
+            in_mat_B <= (others => (others => (others => '0')));
             for i in 0 to v_rB - 1 loop
                 readline(f_in, L_in);
                 for j in 0 to v_cB - 1 loop
@@ -121,12 +111,27 @@ begin
                 end loop;
             end loop;
 
-            -- Execute
+            -- Tunggu stable
+            wait for CLK_PERIOD;
+            
+            -- Debug print (optional - untuk console)
+            report "Test: opcode=" & v_op_str & 
+                   " A=" & integer'image(v_rA) & "x" & integer'image(v_cA) & 
+                   " B=" & integer'image(v_rB) & "x" & integer'image(v_cB);
+            
+            -- Execute - HOLD start HIGH sampai done
             wait until rising_edge(clk);
             start <= '1';
-            -- Tunggu sampai done
-            wait until out_done = '1';
-            wait for CLK_PERIOD;
+            
+            -- Tunggu sampai done (start tetap HIGH!)
+            wait until out_done = '1' for 100 us; -- Timeout protection
+            
+            if out_done /= '1' then
+                report "TIMEOUT: Operation did not complete!" severity warning;
+            end if;
+            
+            -- Tambah delay untuk capture hasil yang stabil
+            wait for CLK_PERIOD * 2;
 
             -- Capture error saat done aktif
             v_captured_error := out_error;
@@ -136,7 +141,6 @@ begin
             write(L_out, v_op_str);
             writeline(f_out, L_out);
 
-            -- Cek apakah ada error
             if v_captured_error /= "0000" then
                 write(L_out, string'("ERROR CODE: "));
                 case v_captured_error is
@@ -179,13 +183,17 @@ begin
             write(L_out, string'("--------------------------------"));
             writeline(f_out, L_out);
 
-            -- Reset start
+            -- Reset start dan tunggu done turun
             start <= '0';
             wait until out_done = '0';
-            wait for CLK_PERIOD * 2;
+            wait for CLK_PERIOD * 3;
 
         end loop;
 
+        file_close(f_in);
+        file_close(f_out);
+        
+        report "Simulation Complete!" severity note;
         wait;
     end process;
 
