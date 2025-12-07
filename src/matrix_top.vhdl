@@ -1,6 +1,6 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
-use IEEE.NUMERIC_STD.ALL;
+use IEEE.NUMERIC_STD.all;
 use work.matrix_pkg.all;
 
 entity matrix_processor_top is
@@ -22,8 +22,12 @@ end matrix_processor_top;
 architecture Structural of matrix_processor_top is
     -- Signals Declaration
     signal w_en_alu, w_en_sys, w_sys_rst : std_logic;
-    signal w_done_alu, w_done_sys        : std_logic;
-    signal res_sys, res_alu              : matrix_5x5;
+    signal w_done_alu, w_done_sys : std_logic;
+    signal res_sys, res_alu : matrix_5x5;
+
+    -- Internal signal untuk membaca error dan busy dari CU
+    signal int_error : std_logic_vector(3 downto 0);
+    signal int_busy : std_logic;
 
 begin
     -- Strucutural (Component Instantiation)
@@ -32,7 +36,7 @@ begin
         rows_A => dim_rows_A, cols_A => dim_cols_A,
         rows_B => dim_rows_B, cols_B => dim_cols_B,
         en_alu => w_en_alu, en_sys => w_en_sys, sys_rst => w_sys_rst,
-        error_code => out_error, busy => open,
+        error_code => int_error, busy => int_busy,
         done_alu => w_done_alu, done_sys => w_done_sys
         );
 
@@ -49,9 +53,15 @@ begin
         mat_Res => res_sys, done => w_done_sys
         );
 
-    -- Pilih hasil dari ALU atau Systolic
-    out_done    <= w_done_alu or w_done_sys;
+    out_error <= int_error;
+
+    -- Logic Output Matrix: Pilih ALU atau Systolic
     out_mat_Res <= res_sys when opcode = OP_MUL else
         res_alu;
+
+    -- Done jika ALU/Sys selesai, ATAU jika ada Error (dari CU)
+    out_done <= '1' when (w_done_alu = '1' or w_done_sys = '1') else
+        '1' when (int_busy = '1' and int_error /= "0000") else
+        '0';
 
 end Structural;
